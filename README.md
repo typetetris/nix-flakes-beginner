@@ -47,6 +47,7 @@ cd ~/repos/nix-flakes-beginner
 nix-shell
 cd ~/playground
 mkdir first-flake
+cd first-flake
 git init
 ```
 
@@ -59,7 +60,7 @@ a file named `flake.nix` with the following content.
 
 Yep. It is that short.
 
-Now we try to look at, what we have done. It should not work!
+Now we look at the flake we created. Don't be frustrated, it should not work!
 
 Enter the following command:
 
@@ -88,7 +89,9 @@ should have changed to something like:
 error: flake 'git+file:///home/typetetris/playground/first-flake' lacks attribute 'outputs'
 ```
 
-and a warning about our git repository being dirty. You can ignore these for now.
+and a warning about our git repository being dirty.
+You can ignore these warnings about the git repository being dirty for now.
+They go away if you commit everything and have a "clean" `git status`.
 
 So `{}` wasn't quite enough for trivial flake.
 
@@ -111,14 +114,14 @@ and that is it. There is not much to show, as our flake doesn't declare anything
 yet. But let's take a look at it.
 
 1. It looks like a normal attribute set.
-2. It defines an attribute with the name `output`, which has a function for its value.
+2. It defines an attribute with the name `outputs`, which has a function for its value.
 
-The function, which is the value for the attribute named `output`, maps inputs of the flake
+The function, which is the value for the attribute named `outputs`, maps inputs of the flake
 to its outputs. At the moment, the only input we know is `self`, which represents the flake
 we are writing itself.
 
 To write a more meaningful flake, we need some inputs. There are ways to access certain inputs
-without declaring them, but we will not delve on that now. We will explicitly declare the
+without declaring them, but we will not address that now. We will explicitly declare the
 inputs we need.
 
 Lets use `nixpkgs` in our flake.
@@ -153,8 +156,7 @@ specified input. The value of the attribute, here named `nixpkgs`,
 is an attribute set describing the input.
 
 For now it just contains an attribute `url` with a string value.
-The value of the `url` attribute is a flake reference, which happens
-to have the syntax of an url.
+The value of the `url` attribute is a special kind of url, a flake reference.
 
 There are a some different types of flake references, but we will
 only use the `github` one for now. The basic syntax of a `github` type
@@ -162,12 +164,14 @@ flake reference is
 
 ```
 github:<owner>/<repository>[/<rev>]
-
 ```
 
 The specified git repository must contain a `flake.nix` file,
 which will be used to learn about the contents of the specified
 input.
+
+You can read more about different kinds of flake references, if you
+call `nix flake --help` and scroll to the appropriate section.
 
 Also we added the identifier `nixpkgs` to the arguments of our
 `outputs` function.
@@ -234,8 +238,8 @@ this have been:
 I don't know every bit of that, but what we can see is, that nix "locked" our
 `nixpkgs` input for us to the commit `1ffba9f2f683063c2b14c9f4d12c55ad5f4ed887`.
 
-And as long, as you don't do anything special, this flake will this commit
-of our `nixpkgs` input for this flake. There is a whole lot of cli commands
+And as long, as you don't do anything special, our flake will use this commit
+of our `nixpkgs` input. There is a whole lot of cli commands
 and options to manage this lock file. So there should be no need for `niv`
 and the like any more.
 
@@ -256,15 +260,18 @@ which machine architecture we want to offer a package. Using a flake as input, w
 also have to specify for which machine architecture we want to use stuff from that
 input. This will complicate things a tiny bit.
 
-So how do we access stuff from our inputs? Yeah, as usual, nixpkgs a special snowflake
+So how do we access stuff from our inputs? Yeah, as usual, nixpkgs is a special snowflake
 here, as it declares a `legacyPackages` output, flakes usual don't have. To access
 the derivation for GNU hello from nixpkgs we have to write:
 
 ```
 nixpkgs.legacyPackages.x86_64-linux.hello
+|       |              |
+|       |              ^ -- machine architecture we want to deal with
+|       |
+|       ^ -- output specified by the nixpkgs flake
+|
 ^ -- input symbolic name used in 'inputs' and the function arguments to 'outputs'
-        ^ -- output specified by the nixpkgs flake
-	               ^ -- machine architecture we want to deal with
 ```
 
 To specify a package, our `outputs` function has to return an attribute set
@@ -305,18 +312,18 @@ nix build .#hello
 ```
 
 If your shell treats everything after a '#' as a comment, inspite of it being mid word, you need
-to use apostrophes like the
+to use apostrophes like that
 
 ```
 nix build '.#hello'
 ```
 
-You should get the usual result like to the build output of `hello`.
+You should get the usual result link to the build output of `hello`.
 
 There is also the concept of a "default package" you can specify in two different
 ways at the moment.
 
-The new way is having a package declared under the default key, like that:
+The new way is having a package declared with an attribute named default, like that:
 
 ```
 {
@@ -376,9 +383,15 @@ git add .
 git commit -m "Initial"
 ```
 
-and that is that. Now we want to build that with nix. There are different ways to
+and that is that.
+
+Remember to "be in" the shell created by this flake, so your nix is new and shiny and
+has the appropriate experimental features activate. (Ignore its experimental, flakes
+are becoming the de facto standard.)
+
+Now we want to build that with nix. There are different ways to
 build rust programs with nix and I mention two of them. We could use the machinery
-already in place in `nixpkgs` to build a rust program, or we could use [naersk](https://github.com/nix-community/naersk).
+already in place in `nixpkgs` to build a rust program, or we could use [`naersk`](https://github.com/nix-community/naersk).
 
 We are going to use `naersk`.
 
@@ -459,7 +472,7 @@ as outputs. (Ignore that it uses nixpkgs input, without
 declaring it. That is using some stuff we haven't touched
 upon yet.)
 
-Again we need to flake.nix to git, so it will be recognised by nix:
+Again we need to add flake.nix to git, so it will be recognised by nix:
 
 ```
 git add flake.nix
@@ -471,16 +484,19 @@ then we can take a look at our flake by running
 nix flake show
 ```
 
-we can also take a look at what inputs our flake uses with the cli
+we can also take a look at what inputs our flake uses
 by calling
 
 ```
 nix flake metadata
 ```
 
-If our rust program wasn't convienently named 'hello-world' one
+It also displays information from the lock file.
+
+If our rust program wasn't conveniently named 'hello-world' one
 would change the 'hello-world' identifiers in the flake.nix to something
-more meaningful for the own project, for consistencies sake.
+more meaningful for the own project, for consistencies sake. Also the `pname`
+attribute value.
 
 The package can be build by
 
